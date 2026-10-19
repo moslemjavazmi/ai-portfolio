@@ -1,0 +1,125 @@
+# ==========================================
+# 📦 Node / Next.js (Frontend)
+# ==========================================
+node_modules/
+.next/
+out/
+build/
+dist/
+.pnpm-store/
+
+# Environment variables (Next.js)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env*.local
+
+# Next.js cache & build
+.vercel/
+.turbo/
+*.tsbuildinfo
+next-env.d.ts
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Testing
+coverage/
+.nyc_output/
+
+# ESLint
+.eslintcache
+
+# ==========================================
+# 🐍 Python / FastAPI (Backend)
+# ==========================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual Environment
+venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.python-version
+
+# Environment variables (FastAPI)
+.env
+.env.*
+!.env.example
+
+# Pytest / Coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+
+# MyPy / Ruff / Black cache
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.ruff_cache/
+.cache/
+
+# ==========================================
+# 🗄️ Database & Files
+# ==========================================
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+*.sqlite-journal
+
+# ==========================================
+# 💻 IDE & Editors
+# ==========================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+.history/
+
+# ==========================================
+# 🔒 Secrets & Keys
+# ==========================================
+*.pem
+*.key
+*.crt
+secrets/
+
+# ==========================================
+# 🐘 PostgreSQL
+# ==========================================
+pgdata/
+postgres_data/
+postgres-data/
+*.dump
+*.backup
+*.bak
+*.sql.gz
+dumps/
+backups/
+.pgpass
+
+# ==========================================
+# 🗄️ SQLAlchemy / Alembic
+# ==========================================
+# alembic/__pycache__/  ← لازم نیست، __pycache__/ پوشش می‌دهد
