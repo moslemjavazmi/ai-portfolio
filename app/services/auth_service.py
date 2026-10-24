@@ -79,17 +79,24 @@ class AuthService:
             ),
         )
 
-        await self.verifications.create(
-            verification
-        )
+        # await self.verifications.create(
+        #     verification
+        # )
+
+        # await self.email_service.send_verification_email(
+        #     email=email,
+        #     token=raw_token,
+        # )
+
+        # await self.db.commit()
+
+        await self.verifications.create(verification)
+        await self.db.commit()
 
         await self.email_service.send_verification_email(
             email=email,
             token=raw_token,
-        )
-
-        await self.db.commit()
-
+)
         return {
             "message": (
                 "Registration successful. "

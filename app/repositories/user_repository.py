@@ -12,6 +12,7 @@ class UserRepository:
         self.db = db
 
     async def get_by_id(self, user_id: UUID) -> User | None:
+        
         result = await self.db.execute(
             select(User).where(User.id == user_id)
         )
@@ -32,7 +33,6 @@ class UserRepository:
         email: str,
         password_hash: str,
     ) -> User:
-        print(name,email,password_hash)
         user = User(
             name=name,
             email=email,

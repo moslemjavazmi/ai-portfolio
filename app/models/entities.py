@@ -1,0 +1,215 @@
+# import uuid
+# from datetime import datetime
+# from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, func
+# from sqlalchemy.dialects.postgresql import UUID
+# from sqlalchemy.orm import Mapped, mapped_column, relationship
+# from core.database import Base
+
+
+# class KnowledgeDocument(Base):
+#     __tablename__ = "knowledge_documents"
+
+#     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+#     slug: Mapped[str] = mapped_column(String(160), unique=True, index=True)
+#     title: Mapped[str] = mapped_column(String(240))
+#     content: Mapped[str] = mapped_column(Text)
+#     is_published: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+#     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+#     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+# class SuggestedQuestion(Base):
+#     __tablename__ = "suggested_questions"
+
+#     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+#     question: Mapped[str] = mapped_column(String(500), unique=True)
+#     category: Mapped[str] = mapped_column(String(80), default="general", index=True)
+#     sort_order: Mapped[int] = mapped_column(Integer, default=0)
+#     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+
+# class Conversation(Base):
+#     __tablename__ = "conversations"
+
+#     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+#     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+#     last_activity_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+#     messages: Mapped[list["ChatMessage"]] = relationship(back_populates="conversation", cascade="all, delete-orphan", order_by="ChatMessage.created_at")
+
+
+# class ChatMessage(Base):
+#     __tablename__ = "chat_messages"
+
+#     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+#     conversation_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("conversations.id", ondelete="CASCADE"), index=True)
+#     role: Mapped[str] = mapped_column(String(20))  # user | assistant
+#     content: Mapped[str] = mapped_column(Text)
+#     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+#     conversation: Mapped[Conversation] = relationship(back_populates="messages")
+
+
+
+import uuid
+from datetime import datetime
+
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Integer,
+    JSON,
+    String,
+    Text,
+    Uuid,
+    func,
+)
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.core.database import Base
+
+
+class KnowledgeDocument(Base):
+    """Knowledge entries that the AI assistant can retrieve."""
+
+    __tablename__ = "knowledge_documents"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    slug: Mapped[str] = mapped_column(
+        String(160),
+        unique=True,
+        index=True,
+        nullable=False,
+    )
+    title: Mapped[str] = mapped_column(String(240), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    is_published: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+
+class Conversation(Base):
+    """A chat session between a visitor and the portfolio assistant."""
+
+    __tablename__ = "conversations"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    language: Mapped[str] = mapped_column(
+        String(10),
+        default="en",
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    messages: Mapped[list["ChatMessage"]] = relationship(
+        back_populates="conversation",
+        cascade="all, delete-orphan",
+        order_by="ChatMessage.created_at",
+    )
+
+
+class ChatMessage(Base):
+    """A single user or assistant message in a conversation."""
+
+    __tablename__ = "chat_messages"
+
+    __table_args__ = (
+        CheckConstraint(
+            "role IN ('user', 'assistant')",
+            name="ck_chat_messages_role",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    conversation_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("conversations.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    role: Mapped[str] = mapped_column(String(20), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+
+    # Optional source titles/identifiers returned by the retrieval system.
+    sources: Mapped[list] = mapped_column(
+        JSON,
+        default=list,
+        nullable=False,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    conversation: Mapped["Conversation"] = relationship(
+        back_populates="messages",
+    )
+
+
+class SuggestedQuestion(Base):
+    """Questions displayed as clickable prompts in the portfolio chat."""
+
+    __tablename__ = "suggested_questions"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    question: Mapped[str] = mapped_column(String(500), nullable=False)
+    category: Mapped[str | None] = mapped_column(
+        String(80),
+        nullable=True,
+    )
+    is_active: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        nullable=False,
+    )
+    sort_order: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
