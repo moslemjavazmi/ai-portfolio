@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import {
@@ -8,9 +9,11 @@ import {
   useState,
 } from "react";
 
-// import { authFetch } from "@/lib/api";
 import { authFetch, refreshSession } from "@/lib/api";
 import { useAuthStore } from "@/store/auth.store";
+import { Sparkles, Send, X } from "lucide-react";
+import { cn } from "@/lib/utils";
+
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -58,20 +61,49 @@ export default function PortfolioAssistant() {
   const [isRestoring, setIsRestoring] = useState(true);
   const [error, setError] = useState("");
 
-
-
   const isAuthenticated = useAuthStore(
-  (state) => state.isAuthenticated
-);
-const isAuthHydrated = useAuthStore(
-  (state) => state.isHydrated
-);
+    (state) => state.isAuthenticated
+  );
+  const isAuthHydrated = useAuthStore(
+    (state) => state.isHydrated
+  );
+
+  // --- UI state for open/close ---
+  const [expanded, setExpanded] = useState(false); // render expanded panel
+  const [visible, setVisible] = useState(false);   // drives transition
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const expandedInputRef = useRef<HTMLInputElement>(null);
+  const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Open / Close with proper exit animation
+  function openChat() {
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current);
+      closeTimeoutRef.current = null;
+    }
+    setExpanded(true);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        setVisible(true);
+        setTimeout(() => expandedInputRef.current?.focus(), 80);
+      });
+    });
+  }
+
+  function closeChat() {
+    setVisible(false);
+    closeTimeoutRef.current = setTimeout(() => {
+      setExpanded(false);
+      setError("");
+      closeTimeoutRef.current = null;
+    }, 280);
+  }
+
+  // Auto-scroll messages (also re-scroll when the panel opens)
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isLoading]);
+  }, [messages, isLoading, expanded]);
 
   // Load suggested questions.
   useEffect(() => {
@@ -113,9 +145,7 @@ const isAuthHydrated = useAuthStore(
       setError("");
 
       try {
-        const savedId = localStorage.getItem(
-          CONVERSATION_STORAGE_KEY,
-        );
+        const savedId = localStorage.getItem(CONVERSATION_STORAGE_KEY);
 
         if (!savedId) {
           setConversationId(null);
@@ -123,8 +153,6 @@ const isAuthHydrated = useAuthStore(
           return;
         }
 
-        // If the user is logged in, refresh the access token
-        // before requesting a conversation owned by that user.
         if (isAuthenticated) {
           try {
             await refreshSession();
@@ -134,10 +162,6 @@ const isAuthHydrated = useAuthStore(
                 "Could not verify your session. Please sign in again and retry.",
               );
             }
-
-            // Do not send the restore request without a valid
-            // authenticated session: the backend may treat it
-            // as a guest request and return a misleading 404.
             return;
           }
         }
@@ -151,10 +175,7 @@ const isAuthHydrated = useAuthStore(
         );
 
         if (!response.ok) {
-          const errorData = await response
-            .json()
-            .catch(() => ({}));
-
+          const errorData = await response.json().catch(() => ({}));
           if (!cancelled) {
             setError(
               `Conversation restore failed (${response.status}): ${
@@ -162,22 +183,15 @@ const isAuthHydrated = useAuthStore(
               }`,
             );
           }
-
-          // Preserve the saved ID so a transient failure
-          // does not permanently discard the conversation.
           return;
         }
 
         const data = await response.json();
-
         if (cancelled) return;
 
         setConversationId(data.conversation_id ?? savedId);
 
-        if (
-          Array.isArray(data.messages) &&
-          data.messages.length > 0
-        ) {
+        if (Array.isArray(data.messages) && data.messages.length > 0) {
           setMessages(
             data.messages.map(
               (message: {
@@ -214,6 +228,33 @@ const isAuthHydrated = useAuthStore(
     };
   }, [isAuthHydrated, isAuthenticated]);
 
+  // Lock body scroll while the panel is open.
+  useEffect(() => {
+    if (!expanded) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [expanded]);
+
+  // Esc closes the panel.
+  useEffect(() => {
+    if (!expanded) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeChat();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expanded]);
+
+  // Clear pending timers on unmount.
+  useEffect(() => {
+    return () => {
+      if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
+    };
+  }, []);
 
   async function sendQuestion(
     event?: FormEvent<HTMLFormElement>,
@@ -307,144 +348,255 @@ const isAuthHydrated = useAuthStore(
     setError("");
   }
 
+  const collapsedSuggestions = suggestions.slice(0, 3);
+
   return (
-    <section
-      id="portfolio-assistant"
-      className="w-full max-w-3xl rounded-2xl border border-white/10 bg-zinc-950 text-zinc-100 shadow-xl"
-      aria-label="AI portfolio assistant"
-    >
-      <header className="flex items-center gap-3 border-b border-white/10 p-5">
-        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-400/10 text-xl">
-          ✦
-        </div>
-
-        <div>
-          <h2 className="text-lg font-semibold">
-            Portfolio AI Assistant
-          </h2>
-          <p className="text-sm text-zinc-400">
-            Ask about projects, skills, and architecture
-          </p>
-        </div>
-
-        <button
-          type="button"
-          onClick={startNewChat}
-          disabled={isLoading || isRestoring}
-          className="ml-auto rounded-lg border border-white/10 px-3 py-2 text-xs text-zinc-300 hover:border-emerald-400/50 disabled:opacity-50"
-        >
-          New chat
-        </button>
-      </header>
-
+    <>
+      {/* ================= COLLAPSED ================= */}
+      {/* ================= COLLAPSED ================= */}
+{!expanded && (
+  <>
+      {/* Solid fade strip — content softly disappears behind the bar */}
       <div
-        className="max-h-[460px] min-h-[260px] space-y-4 overflow-y-auto p-5"
-        aria-live="polite"
-        aria-busy={isLoading || isRestoring}
-      >
-        {isRestoring && (
-          <p className="text-sm text-zinc-400" role="status">
-            Restoring your conversation…
-          </p>
-        )}
+        aria-hidden
+        className="pointer-events-none fixed inset-x-0 bottom-0 z-40 h-32 bg-gradient-to-t from-[#0a0a0b] via-[#0a0a0b]/95 to-transparent sm:h-36"
+      />
 
-        {messages.map((message, index) => (
-          <div
-            key={`${index}-${message.role}`}
-            className={`flex ${
-              message.role === "user"
-                ? "justify-end"
-                : "justify-start"
-            }`}
-          >
-            <div
-              className={`max-w-[90%] rounded-2xl px-4 py-3 text-sm leading-7 ${
-                message.role === "user"
-                  ? "bg-emerald-400 text-zinc-950"
-                  : "border border-white/10 bg-zinc-900 text-zinc-100"
-              }`}
-            >
-              <p className="whitespace-pre-wrap">{message.content}</p>
-
-              {message.role === "assistant" &&
-                message.sources &&
-                message.sources.length > 0 && (
-                  <div className="mt-3 border-t border-white/10 pt-2">
-                    <p className="mb-1 text-xs text-zinc-400">
-                      Sources
-                    </p>
-                    <ul className="list-inside list-disc text-xs text-zinc-400">
-                      {message.sources.map((source, sourceIndex) => (
-                        <li key={`${source}-${sourceIndex}`}>
-                          {source}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+      <div className="pointer-events-none fixed bottom-0 left-0 right-0 z-40 px-3 pb-3 sm:pb-4">
+        <div className="pointer-events-auto mx-auto w-full max-w-xl">
+          {/* Faint suggestions — solid on mobile, subtle on desktop */}
+          {collapsedSuggestions.length > 0 && !isRestoring && (
+            <div className="mb-2 flex flex-wrap justify-center gap-1.5 px-1">
+              {collapsedSuggestions.map((item, index) => (
+                <button
+                  key={item.id ?? `${item.question}-${index}`}
+                  type="button"
+                  onClick={() => {
+                    setQuestion(item.question);
+                    openChat();
+                  }}
+                  className={cn(
+                    "max-w-[220px] truncate rounded-full px-2.5 py-1 text-[10px] transition-all duration-300",
+                    // Solid, high-contrast on mobile so it stands out over cards
+                    "border border-white/10 bg-zinc-900/95 text-zinc-300 shadow-lg shadow-black/50",
+                    "backdrop-blur-md hover:border-emerald-500/40 hover:text-emerald-300",
+                    // Only first 2 on mobile, all 3 on sm+
+                    index >= 2 && "hidden sm:inline-flex",
+                  )}
+                >
+                  {item.question}
+                </button>
+              ))}
             </div>
-          </div>
-        ))}
+          )}
 
-        {isLoading && (
-          <p className="text-sm text-zinc-400" role="status">
-            Assistant is thinking…
-          </p>
-        )}
-
-        <div ref={messagesEndRef} />
+          {/* Compact input */}
+          <button
+            type="button"
+            onClick={openChat}
+            className={cn(
+              "group flex w-full items-center gap-2 rounded-2xl px-3.5 py-2.5",
+              "border border-zinc-800/80 bg-zinc-900/95 shadow-lg shadow-black/50",
+              "backdrop-blur-xl hover:border-emerald-500/40",
+              "transition-all duration-300",
+            )}
+            aria-label="Open AI assistant"
+          >
+            <Sparkles
+              size={14}
+              className="shrink-0 text-zinc-500 transition-colors group-hover:text-emerald-400"
+            />
+            <span className="flex-1 truncate text-left text-xs text-zinc-500 sm:text-sm">
+              {question || "Ask me anything about this portfolio…"}
+            </span>
+            <kbd className="hidden items-center rounded border border-zinc-700/50 px-1.5 py-0.5 text-[9px] text-zinc-600 sm:inline-flex">
+              ⌘K
+            </kbd>
+          </button>
+        </div>
       </div>
+    </>
+  )}
 
-      {!isLoading && suggestions.length > 0 && (
-        <div className="flex flex-wrap gap-2 px-5 pb-4">
-          {suggestions.map((item, index) => (
-            <button
-              key={item.id ?? `${item.question}-${index}`}
-              type="button"
-              onClick={() => void sendQuestion(undefined, item.question)}
-              disabled={isRestoring}
-              className="rounded-full border border-white/10 px-3 py-2 text-left text-xs text-zinc-300 transition hover:border-emerald-400/50 hover:text-emerald-300 disabled:opacity-50"
+      {/* ================= EXPANDED ================= */}
+      {expanded && (
+        <div
+          className="fixed inset-0 z-50 flex items-stretch sm:items-center justify-center"
+          role="dialog"
+          aria-modal="true"
+          aria-label="AI portfolio assistant"
+        >
+          {/* backdrop with blur */}
+          <div
+            onClick={closeChat}
+            className={cn(
+              "absolute inset-0 bg-zinc-950/70 backdrop-blur-xl transition-opacity duration-300",
+              visible ? "opacity-100" : "opacity-0",
+            )}
+          />
+
+          {/* panel */}
+          <div
+            className={cn(
+              "relative z-10 flex flex-col w-full sm:max-w-3xl overflow-hidden",
+              "bg-zinc-950 sm:rounded-3xl border border-white/10 shadow-2xl shadow-black/60",
+              "h-[100dvh] sm:h-[85vh] max-h-[100dvh] sm:max-h-[720px]",
+              "transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
+              visible
+                ? "opacity-100 translate-y-0 scale-100"
+                : "opacity-0 translate-y-6 sm:translate-y-4 scale-[0.98]",
+            )}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* header */}
+            <header className="flex items-center gap-3 border-b border-white/10 px-4 py-3 shrink-0">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-400/10 text-emerald-400">
+                <Sparkles size={16} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h2 className="text-sm font-semibold text-zinc-100 truncate">
+                  Portfolio AI Assistant
+                </h2>
+                <p className="text-[11px] text-zinc-500 truncate">
+                  Ask about projects, skills, and architecture
+                </p>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={startNewChat}
+                  disabled={isLoading || isRestoring}
+                  className="rounded-lg border border-white/10 px-2.5 py-1.5 text-[11px] text-zinc-400 hover:border-emerald-400/50 hover:text-emerald-300 disabled:opacity-50 transition-colors"
+                >
+                  New chat
+                </button>
+                <button
+                  type="button"
+                  onClick={closeChat}
+                  className="h-8 w-8 rounded-lg bg-white/5 hover:bg-white/10 grid place-items-center text-zinc-400 transition-colors"
+                  aria-label="Close"
+                >
+                  <X size={15} />
+                </button>
+              </div>
+            </header>
+
+            {/* messages */}
+            <div
+              className="flex-1 min-h-0 space-y-4 overflow-y-auto p-4"
+              aria-live="polite"
+              aria-busy={isLoading || isRestoring}
             >
-              {item.question}
-            </button>
-          ))}
+              {isRestoring && (
+                <p className="text-sm text-zinc-500" role="status">
+                  Restoring your conversation…
+                </p>
+              )}
+
+              {messages.map((message, index) => (
+                <div
+                  key={`${index}-${message.role}`}
+                  className={cn(
+                    "flex",
+                    message.role === "user" ? "justify-end" : "justify-start",
+                  )}
+                >
+                  <div
+                    className={cn(
+                      "max-w-[90%] rounded-2xl px-4 py-3 text-sm leading-7",
+                      message.role === "user"
+                        ? "bg-emerald-400 text-zinc-950"
+                        : "border border-white/10 bg-zinc-900 text-zinc-100",
+                    )}
+                  >
+                    <p className="whitespace-pre-wrap">{message.content}</p>
+
+                    {message.role === "assistant" &&
+                      message.sources &&
+                      message.sources.length > 0 && (
+                        <div className="mt-3 border-t border-white/10 pt-2">
+                          <p className="mb-1 text-xs text-zinc-400">
+                            Sources
+                          </p>
+                          <ul className="list-inside list-disc text-xs text-zinc-400">
+                            {message.sources.map((source, sourceIndex) => (
+                              <li key={`${source}-${sourceIndex}`}>
+                                {source}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                  </div>
+                </div>
+              ))}
+
+              {isLoading && (
+                <p className="text-sm text-zinc-500" role="status">
+                  Assistant is thinking…
+                </p>
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {error && (
+              <p
+                className="px-4 pb-2 text-xs text-red-400 shrink-0"
+                role="alert"
+              >
+                {error}
+              </p>
+            )}
+
+            {/* suggestion chips */}
+            {!isLoading && suggestions.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 px-4 pb-2 shrink-0">
+                {suggestions.map((item, index) => (
+                  <button
+                    key={item.id ?? `${item.question}-${index}`}
+                    type="button"
+                    onClick={() => void sendQuestion(undefined, item.question)}
+                    disabled={isRestoring}
+                    className="rounded-full border border-white/10 px-3 py-1.5 text-left text-[11px] text-zinc-400 hover:border-emerald-400/50 hover:text-emerald-300 disabled:opacity-50 transition-colors"
+                  >
+                    {item.question}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* input */}
+            <form
+              onSubmit={(event) => void sendQuestion(event)}
+              className="flex gap-2 border-t border-white/10 p-3 shrink-0"
+            >
+              <label htmlFor="assistant-question" className="sr-only">
+                Ask a question
+              </label>
+
+              <input
+                id="assistant-question"
+                ref={expandedInputRef}
+                value={question}
+                onChange={(event) => setQuestion(event.target.value)}
+                placeholder="Ask me anything about this portfolio…"
+                maxLength={2000}
+                disabled={isLoading || isRestoring}
+                className="min-w-0 flex-1 rounded-xl border border-white/10 bg-zinc-900 px-3.5 py-2.5 text-sm text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-emerald-400/60 disabled:opacity-60"
+              />
+
+              <button
+                type="submit"
+                disabled={isLoading || isRestoring || !question.trim()}
+                className="rounded-xl bg-emerald-400 px-4 py-2.5 text-sm font-semibold text-zinc-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-50 grid place-items-center"
+                aria-label="Send"
+              >
+                <Send size={15} />
+              </button>
+            </form>
+          </div>
         </div>
       )}
-
-      {error && (
-        <p className="px-5 pb-3 text-sm text-red-400" role="alert">
-          {error}
-        </p>
-      )}
-
-      <form
-        onSubmit={(event) => void sendQuestion(event)}
-        className="flex gap-2 border-t border-white/10 p-4"
-      >
-        <label htmlFor="assistant-question" className="sr-only">
-          Ask a question
-        </label>
-
-        <input
-          id="assistant-question"
-          value={question}
-          onChange={(event) => setQuestion(event.target.value)}
-          placeholder="Ask me anything about this portfolio…"
-          maxLength={2000}
-          disabled={isLoading || isRestoring}
-          className="min-w-0 flex-1 rounded-xl border border-white/10 bg-zinc-900 px-4 py-3 text-sm outline-none placeholder:text-zinc-500 focus:border-emerald-400/60 disabled:opacity-60"
-        />
-
-        <button
-          type="submit"
-          disabled={
-            isLoading || isRestoring || !question.trim()
-          }
-          className="rounded-xl bg-emerald-400 px-4 py-3 text-sm font-semibold text-zinc-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          Send
-        </button>
-      </form>
-    </section>
+    </>
   );
 }

@@ -1,3 +1,4 @@
+
 "use client";
 
 import { ArrowUpRight } from "lucide-react";
@@ -7,55 +8,73 @@ import type { Project } from "@/lib/projects";
 interface Props {
   project: Project;
   onClick: () => void;
+  index?: number;
   className?: string;
 }
 
-export function ProjectCard({ project, onClick, className }: Props) {
+export function ProjectCard({ project, onClick, index, className }: Props) {
   return (
     <button
       onClick={onClick}
       className={cn(
-        "group relative overflow-hidden rounded-3xl p-4 lg:p-5 text-left h-full",
-        "bg-zinc-900/60 border border-zinc-800 backdrop-blur-sm",
-        "hover:bg-zinc-900 hover:border-zinc-700 hover:scale-[1.02]",
+        "group relative h-full w-full overflow-hidden rounded-2xl p-4 text-left",
+        "bg-gradient-to-b from-white/[0.03] to-transparent",
+        "ring-1 ring-white/[0.06] hover:ring-white/[0.12]",
         "transition-all duration-300",
+        "hover:-translate-y-0.5 hover:shadow-2xl hover:shadow-black/50",
         className
       )}
     >
+      {/* Accent glow */}
       <div
         className={cn(
-          "absolute -top-24 -right-24 h-48 w-48 rounded-full opacity-10 blur-3xl",
-          "group-hover:opacity-30 transition-opacity duration-500",
+          "absolute -right-16 -top-16 h-40 w-40 rounded-full opacity-0 blur-3xl",
+          "transition-opacity duration-500 group-hover:opacity-25",
           project.glow
         )}
       />
 
-      <div className="relative h-full flex flex-col justify-between">
+      {/* Top highlight */}
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
+
+      <div className="relative flex h-full flex-col justify-between">
         <div>
-          <div className="flex items-start justify-between gap-2">
+          {/* Header row */}
+          <div className="mb-3 flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <h3 className="text-sm lg:text-base font-bold text-white truncate">
+              {index !== undefined && (
+                <p className="mb-1 font-mono text-[9px] tracking-wider text-zinc-600">
+                  {String(index + 1).padStart(2, "0")}
+                </p>
+              )}
+              <h3 className="truncate text-sm font-semibold tracking-tight text-white">
                 {project.title}
               </h3>
-              <p className="text-[10px] text-zinc-500 mt-0.5 truncate">
+              <p className="mt-0.5 truncate text-[10px] text-zinc-500">
                 {project.subtitle}
               </p>
             </div>
-            <ArrowUpRight
-              size={14}
-              className="text-zinc-600 group-hover:text-white transition-all shrink-0 group-hover:-translate-x-0.5 group-hover:-translate-y-0.5"
-            />
+
+            {/* Arrow box */}
+            <div className="grid h-7 w-7 shrink-0 place-items-center rounded-lg ring-1 ring-white/[0.06] bg-white/[0.02] transition-all duration-300 group-hover:bg-white/[0.06] group-hover:ring-white/[0.12]">
+              <ArrowUpRight
+                size={12}
+                className="text-zinc-500 transition-all duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-white"
+              />
+            </div>
           </div>
-          <p className="text-[11px] text-zinc-400 mt-2 leading-relaxed line-clamp-2">
+
+          <p className="line-clamp-2 text-[11px] leading-relaxed text-zinc-500">
             {project.shortDescription}
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-1 mt-3">
+        {/* Tags */}
+        <div className="mt-3 flex flex-wrap gap-1">
           {project.tags.slice(0, 3).map((t) => (
             <span
               key={t}
-              className="px-1.5 py-0.5 text-[9px] rounded-md bg-white/5 border border-white/5 text-zinc-400"
+              className="rounded-md bg-white/[0.03] px-1.5 py-0.5 text-[9px] font-medium text-zinc-400 ring-1 ring-white/[0.05]"
             >
               {t}
             </span>

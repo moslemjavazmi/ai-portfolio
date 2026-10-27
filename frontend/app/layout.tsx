@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { Vazirmatn } from "next/font/google";
 import "./globals.css";
 import { AuthBootstrap } from "./providers";
-import { AskBar } from "@/components/AskBar";
+import PortfolioAssistant from "@/components/portfolio/PortfolioAssistant";
 
 const vazir = Vazirmatn({
   subsets: ["arabic"],
@@ -21,8 +21,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="fa" dir="ltr">
       <body className={`${vazir.variable} font-sans antialiased`}>
         <AuthBootstrap>{children}</AuthBootstrap>
-        {/* نوار پرسش روی همه صفحات */}
-        {/* <AskBar /> */}
+        <PortfolioAssistant />
       </body>
     </html>
   );
