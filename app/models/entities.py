@@ -1,53 +1,3 @@
-# import uuid
-# from datetime import datetime
-# from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, func
-# from sqlalchemy.dialects.postgresql import UUID
-# from sqlalchemy.orm import Mapped, mapped_column, relationship
-# from core.database import Base
-
-
-# class KnowledgeDocument(Base):
-#     __tablename__ = "knowledge_documents"
-
-#     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-#     slug: Mapped[str] = mapped_column(String(160), unique=True, index=True)
-#     title: Mapped[str] = mapped_column(String(240))
-#     content: Mapped[str] = mapped_column(Text)
-#     is_published: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-#     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-#     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-
-
-# class SuggestedQuestion(Base):
-#     __tablename__ = "suggested_questions"
-
-#     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-#     question: Mapped[str] = mapped_column(String(500), unique=True)
-#     category: Mapped[str] = mapped_column(String(80), default="general", index=True)
-#     sort_order: Mapped[int] = mapped_column(Integer, default=0)
-#     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-
-
-# class Conversation(Base):
-#     __tablename__ = "conversations"
-
-#     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-#     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-#     last_activity_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-#     messages: Mapped[list["ChatMessage"]] = relationship(back_populates="conversation", cascade="all, delete-orphan", order_by="ChatMessage.created_at")
-
-
-# class ChatMessage(Base):
-#     __tablename__ = "chat_messages"
-
-#     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-#     conversation_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("conversations.id", ondelete="CASCADE"), index=True)
-#     role: Mapped[str] = mapped_column(String(20))  # user | assistant
-#     content: Mapped[str] = mapped_column(Text)
-#     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-#     conversation: Mapped[Conversation] = relationship(back_populates="messages")
-
-
 
 import uuid
 from datetime import datetime
@@ -65,7 +15,7 @@ from sqlalchemy import (
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from app.core.database import Base
 
 
@@ -136,6 +86,18 @@ class Conversation(Base):
         back_populates="conversation",
         cascade="all, delete-orphan",
         order_by="ChatMessage.created_at",
+    )
+
+    user_id: Mapped[PG_UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    guest_token_hash: Mapped[str | None] = mapped_column(
+        String(64),
+        nullable=True,
+        index=True,
     )
 
 

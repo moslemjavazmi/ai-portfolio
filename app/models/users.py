@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, String, func
+from sqlalchemy import DateTime, String, func, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -35,6 +35,12 @@ class User(Base):
     email_verified_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
+    )
+    role: Mapped[str] = mapped_column(
+    String(20),
+    default="USER",
+    server_default=text("'USER'"),
+    nullable=False,
     )
 
     created_at: Mapped[datetime] = mapped_column(

@@ -1,3 +1,5 @@
+from uuid import UUID
+from sqlalchemy import select
 from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException, status
@@ -216,4 +218,114 @@ class AuthService:
             "email_verified": (
                 user.email_verified_at is not None
             ),
+            "role": user.role,
         }
+    
+    @staticmethod
+    def _utc(value: datetime) -> datetime:
+        # Some database drivers return naive datetimes
+        # even when the column is timezone-aware.
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
+
+    async def refresh(
+        self,
+        refresh_token: str,
+        ip_address: str | None,
+        user_agent: str | None,
+    ) -> dict:
+        now = datetime.now(timezone.utc)
+        token_hash = hash_token(refresh_token)
+
+        session = await self.sessions.get_by_refresh_hash(token_hash)
+
+        if session is None or session.revoked_at is not None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid refresh token",
+            )
+
+        if self._utc(session.expires_at) <= now:
+            await self.sessions.revoke(session)
+            await self.db.commit()
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Refresh token expired",
+            )
+
+        user = await self.users.get_by_id(session.user_id)
+
+        if user is None:
+            await self.sessions.revoke(session)
+            await self.db.commit()
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid refresh token",
+            )
+
+        # Rotate the refresh token: revoke the old session.
+        await self.sessions.revoke(session)
+
+        new_refresh_token = generate_secure_token()
+        new_session = Session(
+            user_id=user.id,
+            refresh_token_hash=hash_token(new_refresh_token),
+            expires_at=now + timedelta(
+                days=settings.REFRESH_TOKEN_EXPIRE_DAYS
+            ),
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
+
+        await self.sessions.create(new_session)
+        await self.sessions.update_last_used(new_session)
+
+        access_token = create_access_token(user.id)
+
+        await self.db.commit()
+
+        return {
+            "access_token": access_token,
+            "refresh_token": new_refresh_token,
+            "user": self.serialize_user(user),
+        }
+
+    async def logout(
+        self,
+        user_id: UUID,
+        refresh_token: str | None,
+    ) -> None:
+        if not refresh_token:
+            return
+
+        token_hash = hash_token(refresh_token)
+        session = await self.sessions.get_by_refresh_hash(token_hash)
+
+        # فقط نشست متعلق به همین کاربر را باطل می‌کنیم.
+        if session is not None and session.user_id == user_id:
+            await self.sessions.revoke(session)
+
+        await self.db.commit()
+
+
+    async def logout_all(self, user_id: UUID) -> int:
+        count = await self.sessions.revoke_all_for_user(user_id)
+        await self.db.commit()
+        return count
+
+
+    async def list_active_sessions(self, user_id: UUID) -> list[dict]:
+        sessions = await self.sessions.get_active_for_user(user_id)
+
+        return [
+            {
+                "id": str(session.id),
+                "created_at": session.created_at,
+                "expires_at": session.expires_at,
+                "last_used_at": session.last_used_at,
+                "ip_address": session.ip_address,
+                "user_agent": session.user_agent,
+            }
+            for session in sessions
+        ]

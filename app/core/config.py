@@ -82,6 +82,7 @@ class Settings(BaseSettings):
     JWT_ISSUER: str = "taskino-auth"
     JWT_AUDIENCE: str = "taskino-api"
 
+    COOKIE_SECURE:bool = False
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 10
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
     EMAIL_VERIFICATION_EXPIRE_MINUTES: int = 30
@@ -103,6 +104,13 @@ class Settings(BaseSettings):
     # AI limits
     MAX_QUESTION_CHARS: int = 2000
     MAX_CONTEXT_CHARS: int = 12000
+
+
+
+    # Guest chat cookie
+    GUEST_COOKIE_NAME: str = "portfolio_guest"
+    GUEST_COOKIE_MAX_AGE_SECONDS: int = 60 * 60 * 24 * 30
+    GUEST_COOKIE_SECURE: bool = False
 
     model_config = SettingsConfigDict(
         env_file=".env",
